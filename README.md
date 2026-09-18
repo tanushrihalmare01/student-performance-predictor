@@ -95,6 +95,5 @@ This runs unit tests covering:
 
 ## Screenshots / Results
 
-See `outputs/eda_overview.png` and `outputs/confusion_matrix.png` after
-running `python main.py`, and `outputs/evaluation_report.txt` for the
-full classification report.
+<img width="1280" height="719" alt="image" src="https://github.com/user-attachments/assets/2905b232-7e42-4b80-8ee5-2eaf9d2127ce" />
+
