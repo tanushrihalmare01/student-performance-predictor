@@ -1,62 +1,50 @@
 """
-model_evaluate.py
-------------------
-Module 3 (core): Evaluation & Reporting.
+model_train.py
+---------------
+Module 2 (core): Model Training.
 
-Computes standard classification metrics and a confusion-matrix plot,
-and writes a text evaluation report to outputs/evaluation_report.txt.
+Trains two candidate classifiers (Logistic Regression, Decision Tree),
+picks the better one on validation accuracy, and persists it to disk
+with joblib so predict.py can reuse it without retraining every time.
 """
 
-import os
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score,
-    f1_score, confusion_matrix, classification_report
-)
+import joblib
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
 
-from .utils import DATA_DIR, REPORT_PATH, get_logger
+from .utils import RANDOM_SEED, MODEL_PATH, SCALER_PATH, get_logger
 
 logger = get_logger(__name__)
 
 
-def evaluate_model(model, model_name, X_test, y_test) -> dict:
-    preds = model.predict(X_test)
-
-    metrics = {
-        "accuracy": accuracy_score(y_test, preds),
-        "precision": precision_score(y_test, preds),
-        "recall": recall_score(y_test, preds),
-        "f1_score": f1_score(y_test, preds),
+def train_candidates(X_train, y_train, X_test, y_test):
+    """Train candidate models and return the best one with its name & accuracy."""
+    candidates = {
+        "LogisticRegression": LogisticRegression(random_state=RANDOM_SEED, max_iter=1000),
+        "DecisionTree": DecisionTreeClassifier(random_state=RANDOM_SEED, max_depth=4),
     }
 
-    cm = confusion_matrix(y_test, preds)
-    _plot_confusion_matrix(cm)
+    best_model, best_name, best_acc = None, None, -1
+    for name, model in candidates.items():
+        model.fit(X_train, y_train)
+        preds = model.predict(X_test)
+        acc = accuracy_score(y_test, preds)
+        logger.info(f"{name} validation accuracy: {acc:.3f}")
+        if acc > best_acc:
+            best_model, best_name, best_acc = model, name, acc
 
-    report_text = classification_report(y_test, preds, target_names=["Fail", "Pass"])
-    with open(REPORT_PATH, "w") as f:
-        f.write(f"Model: {model_name}\n\n")
-        f.write(report_text)
-        f.write(f"\nConfusion Matrix:\n{cm}\n")
-
-    logger.info(f"Evaluation complete: {metrics}")
-    logger.info(f"Full report written to {REPORT_PATH}")
-    return metrics
+    logger.info(f"Selected best model: {best_name} (accuracy={best_acc:.3f})")
+    return best_model, best_name, best_acc
 
 
-def _plot_confusion_matrix(cm):
-    fig, ax = plt.subplots(figsize=(4, 4))
-    ax.imshow(cm, cmap="Blues")
-    ax.set_xticks([0, 1]); ax.set_xticklabels(["Fail", "Pass"])
-    ax.set_yticks([0, 1]); ax.set_yticklabels(["Fail", "Pass"])
-    ax.set_xlabel("Predicted"); ax.set_ylabel("Actual")
-    ax.set_title("Confusion Matrix")
-    for i in range(2):
-        for j in range(2):
-            ax.text(j, i, str(cm[i, j]), ha="center", va="center", color="black")
-    plt.tight_layout()
-    out_path = os.path.join(DATA_DIR, "confusion_matrix.png")
-    plt.savefig(out_path, dpi=120)
-    plt.close(fig)
-    logger.info(f"Saved confusion matrix to {out_path}")
+def save_model(model, scaler):
+    joblib.dump(model, MODEL_PATH)
+    joblib.dump(scaler, SCALER_PATH)
+    logger.info(f"Model saved to {MODEL_PATH}")
+
+
+def load_model():
+    model = joblib.load(MODEL_PATH)
+    scaler = joblib.load(SCALER_PATH)
+    return model, scaler
